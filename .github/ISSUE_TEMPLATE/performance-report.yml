@@ -1,0 +1,90 @@
+name: Performance report
+description: Share how a game runs on your Steam Deck or ROG Ally. It shows up on the game's DeckTune page within a few minutes.
+title: "[Report] "
+labels: ["performance-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing! Reports are public and appear on DeckTune a few minutes after you submit.
+        Fill in what you measured; the performance overlay (Steam Deck) or Real-time Monitor (ROG Ally) shows frame rate and power draw.
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      placeholder: ELDEN RING
+    validations:
+      required: true
+  - type: input
+    id: appid
+    attributes:
+      label: Steam app ID
+      description: Filled in for you when you start from DeckTune. Otherwise it's the number in the game's Steam store URL.
+      placeholder: "1245620"
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Handheld
+      options:
+        - Steam Deck LCD
+        - Steam Deck OLED
+        - ROG Ally (Z1 Extreme)
+        - ROG Ally (Z1)
+        - ROG Ally X
+        - ROG Xbox Ally (Z2 A)
+        - ROG Xbox Ally X (Z2 Extreme)
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - SteamOS
+        - Windows
+        - Bazzite or another Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: rating
+    attributes:
+      label: How well does it run?
+      options:
+        - Great - smooth, no real compromises
+        - Good - smooth with a few tweaks
+        - Playable - noticeable compromises
+        - Rough - barely playable
+        - Unplayable
+    validations:
+      required: true
+  - type: input
+    id: fps
+    attributes:
+      label: Average frame rate (fps)
+      description: What it holds in normal play, e.g. 40. Use a range like 35-40 if it moves around.
+      placeholder: "40"
+    validations:
+      required: true
+  - type: input
+    id: battery
+    attributes:
+      label: Battery life (hours)
+      description: Optional. A full charge at these settings, e.g. 2.5.
+      placeholder: "2.5"
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings you used
+      description: Frame cap, refresh rate, TDP or operating mode, in-game preset, resolution and upscaling, launch options, Proton version.
+      placeholder: |
+        40 fps cap at 40 Hz, TDP 10 W, FSR on
+        In-game: Medium preset, shadows Low, 1024x640
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
+      description: Optional. Problems you hit and how you fixed them, stutter spots, crashes, controller quirks.

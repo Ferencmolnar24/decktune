@@ -1,0 +1,13 @@
+steam-deck-shell.bin
+
+Steam Deck external shell geometry by Valve Corporation, from the official Steam Deck CAD release
+(https://gitlab.steamos.cloud/SteamHardware/SteamDeck, steamdeck_stl_20220202.stl), licensed under
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+(https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+Changes made by DeckTune: re-oriented and scaled for the 3D repair viewer, split into front shell,
+controls and back cover at a plane near the shell seam, vertex positions quantized to 16-bit and
+packed into a compact binary format. This adapted file is shared under the same license.
+
+DeckTune is not affiliated with, endorsed by or associated with Valve Corporation.
+Non-commercial use only: this file may not be used in a paid feature without Valve's permission.
