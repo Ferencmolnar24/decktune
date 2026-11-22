@@ -50,20 +50,35 @@ const number = (s) => {
   return m ? parseFloat(m[0].replace(',', '.')) : null;
 };
 
+// Frame rates a handheld can lock to. Older reports typed free numbers ("38-40"); they're read as
+// the step closest to their middle, so every report speaks in 30 / 40 / 45 / 60 / 90 / 120.
+const STEPS = [30, 40, 45, 60, 90, 120];
+function standardFps(text) {
+  const t = (text ?? '').trim();
+  if (/under|below|<\s*30/i.test(t)) return 25;
+  const nums = (t.match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => parseFloat(n.replace(',', '.'))).slice(0, 2);
+  if (nums.length === 0) return null;
+  const fps = nums.length === 2 ? (nums[0] + nums[1]) / 2 : nums[0];
+  if (fps <= 0 || fps > 500) return null;
+  if (fps < 27) return 25;
+  return STEPS.reduce((best, s) => (Math.abs(Math.log(fps / s)) < Math.abs(Math.log(fps / best)) - 1e-9 ? s : best), STEPS[0]);
+}
+
+// Posted from DeckTune with no GitHub account: only the report service can add this label.
+const isGuest = (issue) => issue.labels?.some((l) => (typeof l === 'string' ? l : l.name).toLowerCase() === 'guest');
+const PRESETS = ['Max Battery', 'Optimal', 'Max Performance', 'My own settings'];
+
 function parse(issue) {
   const f = sections(issue.body);
   const appId = parseInt((f['steam app id'] ?? '').replace(/\D/g, ''), 10);
   const device = DEVICES[(f['handheld'] ?? '').trim()];
   const rating = (f['how well does it run?'] ?? '').trim().split(/[\s-]/)[0].toLowerCase();
-  // "38-40" counts as 39, so a range neither flatters nor undersells.
-  const range = (f['average frame rate (fps)'] ?? '').match(/(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?)/);
-  const fps = range
-    ? (parseFloat(range[1].replace(',', '.')) + parseFloat(range[2].replace(',', '.'))) / 2
-    : number(f['average frame rate (fps)']);
-  if (!appId || !device || !RATINGS.includes(rating) || fps == null || fps <= 0 || fps > 500) return null;
+  const fps = standardFps(f['frame rate'] ?? f['average frame rate (fps)']);
+  if (!appId || !device || !RATINGS.includes(rating) || fps == null) return null;
 
-  const fpsText = (f['average frame rate (fps)'] ?? '').match(/\d+(?:\s*[-–]\s*\d+)?/)?.[0].replace(/\s/g, '') ?? String(fps);
   const battery = number(f['battery life (hours)']);
+  const preset = PRESETS.find((p) => p.toLowerCase() === (f['decktune preset used'] ?? '').trim().toLowerCase()) ?? '';
+  const guest = isGuest(issue);
   return {
     id: issue.number,
     appId,
@@ -72,12 +87,14 @@ function parse(issue) {
     os: clip((f['operating system'] ?? '').trim(), 40),
     rating,
     fps,
-    fpsText: clip(fpsText, 12),
+    fpsText: fps === 25 ? 'Under 30' : String(fps),
     battery: battery != null && battery > 0 && battery < 30 ? battery : null,
+    ...(preset ? { preset } : {}),
     settings: clip(f['settings you used'] ?? '', 1500),
     notes: clip(f['anything else?'] ?? '', 1500),
-    user: issue.user?.login ?? 'ghost',
-    avatar: issue.user?.avatar_url ?? '',
+    user: guest ? clip((f['posted by'] ?? '').trim() || 'Guest', 40) : issue.user?.login ?? 'ghost',
+    avatar: guest ? '' : issue.user?.avatar_url ?? '',
+    ...(guest ? { guest: true } : {}),
     created: issue.created_at,
     updated: issue.updated_at,
     helpful: issue.reactions?.['+1'] ?? 0,

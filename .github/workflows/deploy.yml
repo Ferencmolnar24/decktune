@@ -54,6 +54,9 @@ jobs:
         run: npm run build
         env:
           VITE_GITHUB_REPO: ${{ github.repository }}
+          # The no-account report service (worker/). Unset, the site posts through GitHub only.
+          VITE_REPORT_API: ${{ vars.REPORT_API }}
+          VITE_TURNSTILE_SITEKEY: ${{ vars.TURNSTILE_SITEKEY }}
 
       - uses: actions/configure-pages@v5
 

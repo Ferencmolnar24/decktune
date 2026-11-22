@@ -82,10 +82,16 @@ export interface Report {
   fps: number;
   fpsText: string;
   battery: number | null;
+  // The DeckTune preset the player used, when they used one.
+  preset?: string;
   settings: string;
   notes: string;
   user: string;
   avatar: string;
+  // Posted on DeckTune without a GitHub account; `user` is the name they gave.
+  guest?: boolean;
+  // Posted by this visitor and not yet in the published list.
+  pending?: boolean;
   created: string;
   updated: string;
   helpful: number;

@@ -91,7 +91,7 @@ export function GamePage({ appId }: { appId: number }) {
         ? <Presets appId={appId} device={device} facts={f} onSwitch={setDevice} />
         : <NoPresets game={game} device={device} />}
 
-      <GameReports game={game} reports={gameReports} device={device} />
+      <GameReports game={{ appId: game.appId, name: game.name, hasPresets: game.hasProfiles }} reports={gameReports} device={device} />
     </div>
   );
 }
@@ -121,7 +121,7 @@ function NoPresets({ game, device }: { game: GameInfo; device: DeviceId }) {
       <p className="text-muted-foreground max-w-lg">
         Player reports below are the best guide for now. If you've played it, share the settings that worked on your {getHandheld(device).name}, and see <a className="text-brand-text hover:underline" href="#/guide">Tune it yourself</a> for a method that works for any game.
       </p>
-      <ShareButton game={game} device={device} />
+      <ShareButton game={{ appId: game.appId, name: game.name, hasPresets: game.hasProfiles }} device={device} />
       <HowPostingWorks />
     </div>
   );

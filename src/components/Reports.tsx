@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Report } from '../lib/data';
 import { getHandheld, HANDHELDS, type DeviceId } from '../lib/handhelds';
-import { newReportUrl, RATINGS, ratingInfo, REPO, reportUrl, summarize, timeAgo } from '../lib/community';
-import { GitHubMark, Icon } from './ui';
+import { RATINGS, ratingInfo, REPORT_API, reportUrl, summarize, timeAgo } from '../lib/community';
+import { useStored } from '../lib/state';
+import { ReportForm, type ReportGame } from './ReportForm';
+import { Icon } from './ui';
 
 export function ReportCard({ report, showGame = false }: { report: Report; showGame?: boolean }) {
   const r = report;
@@ -15,10 +17,10 @@ export function ReportCard({ report, showGame = false }: { report: Report; showG
       <header className="flex items-start gap-3">
         {r.avatar
           ? <img src={`${r.avatar}${r.avatar.includes('?') ? '&' : '?'}s=64`} alt="" className="w-9 h-9 rounded-full bg-muted shrink-0" loading="lazy" />
-          : <div className="w-9 h-9 rounded-full bg-muted shrink-0" />}
+          : <div className="w-9 h-9 rounded-full bg-brand/15 text-brand-text font-semibold flex items-center justify-center shrink-0" aria-hidden="true">{(r.user.trim()[0] ?? 'G').toUpperCase()}</div>}
         <div className="flex-1 min-w-0">
           {showGame && <a href={`#/game/${r.appId}`} className="font-semibold hover:text-brand-text block truncate">{r.game}</a>}
-          <p className="text-sm"><span className="font-medium">{r.user}</span> <span className="text-muted-foreground">· {getHandheld(r.device).name}{r.os ? ` · ${r.os}` : ''}</span></p>
+          <p className="text-sm"><span className="font-medium">{r.user}</span>{r.guest && <span className="caption"> (guest)</span>} <span className="text-muted-foreground">· {getHandheld(r.device).name}{r.os ? ` · ${r.os}` : ''}</span></p>
           <p className="caption">{timeAgo(r.created)}</p>
         </div>
         <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${rating.tone}`}>{rating.label}</span>
@@ -28,6 +30,11 @@ export function ReportCard({ report, showGame = false }: { report: Report; showG
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-sm font-semibold tabular-nums">
           <Icon name="gauge" className="w-4 h-4 text-sky-400" /> {r.fpsText} fps
         </span>
+        {r.preset && r.preset !== 'My own settings' && (
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/10 px-2.5 py-1 text-sm font-medium text-brand-text">
+            <Icon name="sliders-horizontal" className="w-4 h-4" /> DeckTune {r.preset} preset
+          </span>
+        )}
         {r.battery != null && (
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-sm font-semibold tabular-nums">
             <Icon name="battery-full" className="w-4 h-4 text-emerald-400" /> {r.battery} h
@@ -51,6 +58,11 @@ export function ReportCard({ report, showGame = false }: { report: Report; showG
       </div>
       {long && <button type="button" className="btn-ghost self-start -ml-3 text-brand-text" onClick={() => setOpen(!open)}>{open ? 'Show less' : 'Read all'}</button>}
 
+      {r.pending ? (
+        <footer className="flex items-center gap-2 text-xs text-amber-200 pt-3 border-t border-border/60 mt-auto">
+          <Icon name="clock" className="w-3.5 h-3.5" /> Only you see this until the site rebuilds, usually within a few minutes.
+        </footer>
+      ) : (
       <footer className="flex items-center gap-4 text-xs text-muted-foreground pt-1 border-t border-border/60 mt-auto">
         <span className="inline-flex items-center gap-1.5 pt-3 tabular-nums" title="People who found this helpful (👍 on GitHub)">
           <Icon name="thumbs-up" className="w-3.5 h-3.5" /> {r.helpful}
@@ -62,39 +74,56 @@ export function ReportCard({ report, showGame = false }: { report: Report; showG
           Reply or vote on GitHub <Icon name="external-link" className="w-3.5 h-3.5" />
         </a>
       </footer>
+      )}
     </article>
   );
 }
 
-export function ShareButton({ game, device, className = 'btn-primary' }: { game: { appId: number; name: string }; device: DeviceId; className?: string }) {
-  if (!REPO) {
-    return (
-      <span className="flex flex-col gap-1">
-        <button type="button" className={className} disabled>
-          <Icon name="pen-line" /> Share your report
-        </button>
-        <span className="caption">Posting turns on once the site is published from its GitHub repository.</span>
-      </span>
-    );
-  }
+export function ShareButton({ game, device, className = 'btn-primary' }: { game?: ReportGame; device: DeviceId; className?: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <a className={className} href={newReportUrl(game, device)} target="_blank" rel="noreferrer">
-      <Icon name="pen-line" /> Share your report
-    </a>
+    <>
+      <button type="button" className={className} onClick={() => setOpen(true)}>
+        <Icon name="pen-line" /> Share your report
+      </button>
+      {open && <ReportForm game={game} device={device} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
 export function HowPostingWorks() {
   return (
     <p className="caption flex items-start gap-2">
-      <GitHubMark className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-      <span>Reports are posted with a free GitHub account and show up here a few minutes later. Anyone can read them; reply or give a 👍 on GitHub.</span>
+      <Icon name="users" className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+      <span>
+        {REPORT_API
+          ? 'Post right here, no account needed, or with your GitHub account. Reports show up for everyone a few minutes later; give a 👍 or reply on GitHub.'
+          : 'Reports are posted with a free GitHub account and show up here a few minutes later. Anyone can read them; reply or give a 👍 on GitHub.'}
+      </span>
     </p>
   );
 }
 
+// Reports this visitor posted that the published list doesn't have yet. Published or week-old ones
+// drop out of storage.
+export function usePendingReports(published: Report[] | undefined): Report[] {
+  const [pending, setPending] = useStored<Report[]>('pending-reports', []);
+  const live = useMemo(() => {
+    if (!published) return [];
+    const ids = new Set(published.map((r) => r.id));
+    const week = Date.now() - 7 * 86400_000;
+    return pending.filter((r) => !ids.has(r.id) && new Date(r.created).getTime() > week);
+  }, [pending, published]);
+  useEffect(() => {
+    if (published && live.length !== pending.length) setPending(live);
+  }, [live, pending.length, published, setPending]);
+  return live;
+}
+
 // A game's reports: the verdict at a glance, then the reports themselves, filterable by handheld.
-export function GameReports({ game, reports, device }: { game: { appId: number; name: string }; reports: Report[]; device: DeviceId }) {
+export function GameReports({ game, reports: published, device }: { game: ReportGame; reports: Report[]; device: DeviceId }) {
+  const pending = usePendingReports(published);
+  const reports = useMemo(() => [...pending.filter((r) => r.appId === game.appId), ...published], [pending, published, game.appId]);
   const present = useMemo(() => {
     const m = new Map<DeviceId, number>();
     for (const r of reports) m.set(r.device, (m.get(r.device) ?? 0) + 1);
@@ -136,7 +165,7 @@ export function GameReports({ game, reports, device }: { game: { appId: number; 
           <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-3">
             <div className="grid grid-cols-3 gap-2">
               <SummaryTile label="Reports" value={String(s.count)} />
-              <SummaryTile label="Typical fps" value={s.fps == null ? '–' : String(Math.round(s.fps))} />
+              <SummaryTile label="Typical fps" value={s.fps == null ? '–' : s.fps < 30 ? 'Under 30' : String(s.fps)} />
               <SummaryTile label="Battery" value={s.battery == null ? '–' : `${Math.round(s.battery * 10) / 10} h`} />
             </div>
             <div className="card rounded-xl p-3 flex flex-col gap-1.5">

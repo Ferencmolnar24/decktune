@@ -4,7 +4,8 @@ import { HANDHELDS } from '../lib/handhelds';
 import { allReportsUrl, RATINGS, REPO } from '../lib/community';
 import { useLoad } from '../lib/state';
 import { BackLink, EmptyState, ErrorRow, GitHubMark, Icon } from '../components/ui';
-import { HowPostingWorks, ReportCard } from '../components/Reports';
+import { HowPostingWorks, ReportCard, ShareButton, usePendingReports } from '../components/Reports';
+import { useDevice } from '../App';
 
 const PAGE = 20;
 
@@ -15,7 +16,9 @@ export function CommunityPage() {
   const [rating, setRating] = useState('all');
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const reports = data?.reports ?? [];
+  const [myDevice] = useDevice();
+  const pending = usePendingReports(data?.reports);
+  const reports = useMemo(() => [...pending, ...(data?.reports ?? [])], [pending, data]);
 
   const deviceCounts = useMemo(() => count(reports, (r) => r.device), [reports]);
   const ratingCounts = useMemo(() => count(reports, (r) => r.rating), [reports]);
@@ -36,8 +39,11 @@ export function CommunityPage() {
         <span className="self-start inline-flex items-center rounded-full border border-brand/50 bg-brand/10 px-3 py-1 eyebrow text-brand-text">Open to everyone</span>
         <h1 className="font-heading font-bold uppercase leading-[0.95] text-4xl sm:text-5xl">Player reports</h1>
         <p className="text-lg text-muted-foreground">
-          How games really run on Steam Decks and ROG Allys, measured by the people playing them. Open any game to share your own frame rate, battery life and settings.
+          How games really run on Steam Decks and ROG Allys, measured by the people playing them. Share your own frame rate, battery life and settings in under a minute.
         </p>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <ShareButton device={myDevice} />
+        </div>
         {data && reports.length > 0 && (
           <p className="text-sm text-muted-foreground tabular-nums">{reports.length} reports on {games} {games === 1 ? 'game' : 'games'} from {players} {players === 1 ? 'player' : 'players'}</p>
         )}
@@ -46,8 +52,8 @@ export function CommunityPage() {
       {failed ? <ErrorRow text="Couldn't load the reports." onRetry={retry} />
         : !data ? <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{Array.from({ length: 4 }, (_, i) => <div key={i} className="skeleton h-56 rounded-2xl" />)}</div>
           : reports.length === 0 ? (
-            <EmptyState icon="users" title="No reports yet" body="Be the first: open a game you've played, then press Share your report.">
-              <a href="#/" className="btn-primary mt-2"><Icon name="search" /> Find a game</a>
+            <EmptyState icon="users" title="No reports yet" body="Be the first: share how a game you've played runs on your handheld.">
+              <a href="#/" className="btn-outline mt-2"><Icon name="search" /> Browse games</a>
               <div className="pt-2"><HowPostingWorks /></div>
             </EmptyState>
           ) : (

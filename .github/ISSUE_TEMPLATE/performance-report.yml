@@ -1,5 +1,5 @@
 name: Performance report
-description: Share how a game runs on your Steam Deck or ROG Ally. It shows up on the game's DeckTune page within a few minutes.
+description: Share how a game runs on your Steam Deck or ROG Ally. Easier from DeckTune itself, where every game page has a Share button.
 title: "[Report] "
 labels: ["performance-report"]
 body:
@@ -59,12 +59,19 @@ body:
         - Unplayable
     validations:
       required: true
-  - type: input
+  - type: dropdown
     id: fps
     attributes:
-      label: Average frame rate (fps)
-      description: What it holds in normal play, e.g. 40. Use a range like 35-40 if it moves around.
-      placeholder: "40"
+      label: Frame rate
+      description: The cap it holds in normal play. Dips in the busiest spots are fine; mention them in the notes.
+      options:
+        - Under 30
+        - "30"
+        - "40"
+        - "45"
+        - "60"
+        - "90"
+        - "120"
     validations:
       required: true
   - type: input
@@ -73,6 +80,16 @@ body:
       label: Battery life (hours)
       description: Optional. A full charge at these settings, e.g. 2.5.
       placeholder: "2.5"
+  - type: dropdown
+    id: preset
+    attributes:
+      label: DeckTune preset used
+      description: Optional. If you used one of the game's DeckTune presets.
+      options:
+        - Max Battery
+        - Optimal
+        - Max Performance
+        - My own settings
   - type: textarea
     id: settings
     attributes:

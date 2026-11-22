@@ -2,6 +2,7 @@
 // device-neutral view the game page renders. Steam Deck presets map field for field; ROG Ally
 // presets are converted from the game's Deck profile here, in code.
 import { ALLY_BASES, getHandheld, type AllyChip, type DeviceId } from './handhelds';
+import { fpsStepsFor, formatFps, nearestStep } from './fps';
 
 export interface GameSetting { Name: string; Value: string }
 
@@ -72,7 +73,7 @@ export type DeckVerified = 0 | 1 | 2 | 3;
 
 // ───────────────────────── Steam Deck ─────────────────────────
 
-function fromDeckProfile(p: DeckProfile): ProfileView {
+function fromDeckProfile(p: DeckProfile, device: DeviceId): ProfileView {
   return {
     notes: p.Notes,
     systemTitle: 'Quick Access › Performance',
@@ -89,7 +90,7 @@ function fromDeckProfile(p: DeckProfile): ProfileView {
     launchOptions: p.LaunchOptions,
     compatTitle: 'Compatibility layer',
     compat: p.ProtonVersion,
-    expectedFps: p.ExpectedFps,
+    expectedFps: formatFps(p.ExpectedFps, p.FrameLimit, device),
     expectedBatteryLife: p.ExpectedBatteryLife,
   };
 }
@@ -103,9 +104,9 @@ export function viewForDevice(game: GameProfiles, device: DeviceId, verified: De
     return {
       summary: s.Summary,
       knownIssues: s.KnownIssues ?? [],
-      MaxBattery: fromDeckProfile(s.MaxBattery),
-      Optimal: fromDeckProfile(s.Optimal),
-      MaxPerformance: fromDeckProfile(s.MaxPerformance),
+      MaxBattery: fromDeckProfile(s.MaxBattery, device),
+      Optimal: fromDeckProfile(s.Optimal, device),
+      MaxPerformance: fromDeckProfile(s.MaxPerformance, device),
       basis: s.Basis ?? '',
       confidence: s.Confidence ?? '',
       basisNote: s.BasisNote ?? '',
@@ -243,10 +244,14 @@ function toView(plan: Plan, kind: ProfileKind, weight: Weight, chip: AllyChip, s
   }
 
   const refresh = cap === 30 || (cap === 60 && kind === 'MaxBattery') ? '60 Hz' : '120 Hz · VRR on';
-  // "Locked" only with a real margin; otherwise an honest range up to the cap.
+  // "Locked" only with a real margin; otherwise an honest range up to the cap. Both ends are rates
+  // the 120 Hz screen paces evenly, never a measured-looking "34-40".
+  const steps = fpsStepsFor('ally');
+  const range = (lo: number | null, hi: number | null) =>
+    lo === hi ? `${lo ?? 'Under 30'} fps` : lo == null ? `Up to ${hi} fps` : `${lo}–${hi} fps`;
   const fps = cap > 0
-    ? estimate >= cap * 1.15 ? `${cap} fps locked` : `${Math.max(20, Math.trunc(Math.min(cap - 2, estimate * 0.85)))}-${cap} fps`
-    : `${Math.trunc(Math.min(110, estimate * 0.85))}-${Math.trunc(Math.min(120, estimate * 1.05))} fps`;
+    ? estimate >= cap * 1.15 ? `${cap} fps locked` : range(nearestStep(Math.min(cap, estimate * 0.85), steps), cap)
+    : range(nearestStep(Math.min(110, estimate * 0.85), steps), nearestStep(Math.min(120, estimate * 1.05), steps));
 
   // A capped game draws less than its mode allows; the screen and the rest always draw their share.
   const load = cap > 0 ? Math.min(1, Math.max(0.45, cap / estimate)) : 1;
