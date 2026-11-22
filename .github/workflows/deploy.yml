@@ -50,13 +50,20 @@ jobs:
           git add public/data/catalog.json public/data/facts.json
           git diff --cached --quiet || (git commit -m "Refresh Steam data" && git push)
 
+      # Supabase pauses a free project after a week without use; a daily read keeps it awake.
+      - name: Keep the report database awake
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        run: |
+          set -a; . ./.env; set +a
+          if [ -n "$VITE_SUPABASE_URL" ]; then
+            curl -fsS -o /dev/null "$VITE_SUPABASE_URL/rest/v1/reports?select=id&limit=1" -H "apikey: $VITE_SUPABASE_KEY"
+          fi
+
       - name: Build
         run: npm run build
         env:
           VITE_GITHUB_REPO: ${{ github.repository }}
-          # The no-account report service (worker/). Unset, the site posts through GitHub only.
-          VITE_REPORT_API: ${{ vars.REPORT_API }}
-          VITE_TURNSTILE_SITEKEY: ${{ vars.TURNSTILE_SITEKEY }}
 
       - uses: actions/configure-pages@v5
 

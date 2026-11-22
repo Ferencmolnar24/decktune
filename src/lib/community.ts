@@ -1,14 +1,13 @@
-// Community reports live as GitHub issues in this site's repository. A visitor posts through
-// DeckTune's own form: straight from the site with no account (through the small report service in
-// worker/, when it's set up), or by opening a filled-in GitHub issue with their GitHub account.
+// Posting a report: the form's answers (a draft), what's still missing, and the two ways to post.
+// With the report database set up (lib/reports.ts) visitors post right on DeckTune; until then the
+// form opens a filled-in GitHub issue instead.
 import { getHandheld, type DeviceId } from './handhelds';
 import type { Rating, Report } from './data';
+import { cleanSettings, hasSettings, settingsText, type ReportSettings } from './settings';
+import type { NewReport } from './reports';
 
-// Set by the GitHub Actions build (owner/repo); a local build without it can't post.
+// Set by the GitHub Actions build (owner/repo).
 export const REPO: string = import.meta.env.VITE_GITHUB_REPO ?? '';
-// The report service's URL and its Turnstile site key, from the repository's Actions variables.
-export const REPORT_API: string = import.meta.env.VITE_REPORT_API ?? '';
-export const TURNSTILE_SITEKEY: string = import.meta.env.VITE_TURNSTILE_SITEKEY ?? '';
 
 export const OS_OPTIONS = ['SteamOS', 'Windows', 'Bazzite or another Linux'] as const;
 export const PRESET_OPTIONS = ['Max Battery', 'Optimal', 'Max Performance', 'My own settings'] as const;
@@ -34,7 +33,7 @@ export interface ReportDraft {
   fps: string;
   battery: string;
   preset: string;
-  settings: string;
+  setup: ReportSettings;
   notes: string;
   name: string;
 }
@@ -45,7 +44,7 @@ export function missing(d: ReportDraft): string[] {
   if (!d.appId) out.push('the game');
   if (!d.rating) out.push('how it runs');
   if (!d.fps) out.push('the frame rate');
-  if (!d.preset && !d.settings.trim()) out.push('the settings you used');
+  if ((!d.preset || d.preset === 'My own settings') && !hasSettings(d.setup)) out.push('your settings');
   return out;
 }
 
@@ -67,7 +66,7 @@ export function reportBody(d: ReportDraft): string {
     section('Frame rate', d.fps),
     section('Battery life (hours)', d.battery),
     section('DeckTune preset used', d.preset),
-    section('Settings you used', clean(d.settings)),
+    section('Settings you used', clean(settingsText(cleanSettings(d.setup, d.device, d.os)))),
     section('Anything else?', clean(d.notes)),
   ].join('\n\n');
 }
@@ -78,46 +77,26 @@ export function githubReportUrl(d: ReportDraft): string {
   return `https://github.com/${REPO}/issues/new?${params}`;
 }
 
-export class PostError extends Error {}
-
-// Posts through the report service. Its replies carry a sentence meant for the visitor.
-export async function postReport(d: ReportDraft, turnstile: string, honeypot: string): Promise<{ id: number; url: string }> {
-  let res: Response;
-  try {
-    res = await fetch(REPORT_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...d, turnstile, website: honeypot }),
-    });
-  } catch {
-    throw new PostError("Couldn't reach DeckTune's report service. Check your connection and try again.");
-  }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new PostError(typeof data.error === 'string' ? data.error : "The report service couldn't post this. Try again in a minute.");
-  return { id: data.id, url: data.url };
-}
-
-// A report this visitor just posted, shown to them until the next build publishes it for everyone.
-export function pendingReport(d: ReportDraft, id: number): Report {
-  const now = new Date().toISOString();
+// The draft as the report database stores it.
+export function toNewReport(d: ReportDraft): NewReport {
   return {
-    id, appId: d.appId, game: d.game, device: d.device, os: d.os, rating: d.rating as Rating,
-    fps: d.fps === 'Under 30' ? 25 : Number(d.fps), fpsText: d.fps,
-    battery: d.battery ? parseFloat(d.battery) : null, preset: d.preset, settings: d.settings.trim(), notes: d.notes.trim(),
-    user: d.name.trim() || 'Guest', avatar: '', guest: true, pending: true,
-    created: now, updated: now, helpful: 0, comments: 0,
+    appId: d.appId, game: d.game.trim(), device: d.device, os: d.os, rating: d.rating as Rating,
+    fps: d.fps === 'Under 30' ? 25 : Number(d.fps),
+    battery: d.battery ? parseFloat(d.battery) : null,
+    preset: d.preset, settings: cleanSettings(d.setup, d.device, d.os),
+    notes: d.notes.trim().slice(0, 1500), name: d.name.trim().replace(/\s+/g, ' ').slice(0, 40),
   };
 }
 
 export const reportUrl = (id: number) => `https://github.com/${REPO}/issues/${id}`;
 export const allReportsUrl = () => `https://github.com/${REPO}/issues?q=is%3Aissue+is%3Aopen+label%3Aperformance-report`;
 
-export const RATINGS: { id: Rating; label: string; tone: string; bar: string }[] = [
-  { id: 'great', label: 'Great', tone: 'text-emerald-300 border-emerald-400/40 bg-emerald-400/10', bar: 'bg-emerald-400' },
-  { id: 'good', label: 'Good', tone: 'text-sky-300 border-sky-400/40 bg-sky-400/10', bar: 'bg-sky-400' },
-  { id: 'playable', label: 'Playable', tone: 'text-amber-200 border-amber-400/40 bg-amber-400/10', bar: 'bg-amber-400' },
-  { id: 'rough', label: 'Rough', tone: 'text-orange-300 border-orange-400/40 bg-orange-400/10', bar: 'bg-orange-400' },
-  { id: 'unplayable', label: 'Unplayable', tone: 'text-rose-300 border-rose-500/40 bg-rose-500/10', bar: 'bg-rose-500' },
+export const RATINGS: { id: Rating; label: string; hint: string; tone: string; bar: string }[] = [
+  { id: 'great', label: 'Great', hint: 'Smooth, no compromises', tone: 'text-emerald-300 border-emerald-400/40 bg-emerald-400/10', bar: 'bg-emerald-400' },
+  { id: 'good', label: 'Good', hint: 'Smooth after a few tweaks', tone: 'text-sky-300 border-sky-400/40 bg-sky-400/10', bar: 'bg-sky-400' },
+  { id: 'playable', label: 'Playable', hint: 'Works, with clear compromises', tone: 'text-amber-200 border-amber-400/40 bg-amber-400/10', bar: 'bg-amber-400' },
+  { id: 'rough', label: 'Rough', hint: 'Barely playable', tone: 'text-orange-300 border-orange-400/40 bg-orange-400/10', bar: 'bg-orange-400' },
+  { id: 'unplayable', label: 'Unplayable', hint: "Crashes or won't run", tone: 'text-rose-300 border-rose-500/40 bg-rose-500/10', bar: 'bg-rose-500' },
 ];
 
 export const ratingInfo = (r: Rating) => RATINGS.find((x) => x.id === r) ?? RATINGS[2];

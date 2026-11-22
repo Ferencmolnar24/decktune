@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Report } from '../lib/data';
 import { getHandheld, HANDHELDS, type DeviceId } from '../lib/handhelds';
-import { RATINGS, ratingInfo, REPORT_API, reportUrl, summarize, timeAgo } from '../lib/community';
+import { RATINGS, ratingInfo, reportUrl, summarize, timeAgo } from '../lib/community';
+import { SITE_POSTING, voteHelpful } from '../lib/reports';
+import { settingsChips } from '../lib/settings';
 import { useStored } from '../lib/state';
 import { ReportForm, type ReportGame } from './ReportForm';
 import { Icon } from './ui';
@@ -10,7 +12,9 @@ export function ReportCard({ report, showGame = false }: { report: Report; showG
   const r = report;
   const rating = ratingInfo(r.rating);
   const [open, setOpen] = useState(false);
-  const long = r.settings.length + r.notes.length > 360;
+  const chips = r.setup ? settingsChips(r.setup) : [];
+  const other = r.setup?.other ?? '';
+  const long = r.settings.length + other.length + r.notes.length > 360;
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl bg-card border border-border p-4 sm:p-5 min-w-0">
@@ -43,10 +47,16 @@ export function ReportCard({ report, showGame = false }: { report: Report; showG
       </div>
 
       <div className={`flex flex-col gap-2 text-sm ${long && !open ? 'max-h-36 overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent)]' : ''}`}>
-        {r.settings && (
+        {(chips.length > 0 || other || r.settings) && (
           <div>
-            <p className="eyebrow text-muted-foreground mb-1">Settings</p>
-            <p className="whitespace-pre-wrap break-words">{r.settings}</p>
+            <p className="eyebrow text-muted-foreground mb-1.5">Settings</p>
+            {chips.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((c) => <span key={c} className="rounded-md border border-border px-2 py-0.5 text-xs font-medium tabular-nums">{c}</span>)}
+              </div>
+            )}
+            {other && <p className="whitespace-pre-wrap break-words mt-1.5">{other}</p>}
+            {r.settings && <p className="whitespace-pre-wrap break-words">{r.settings}</p>}
           </div>
         )}
         {r.notes && (
@@ -58,22 +68,18 @@ export function ReportCard({ report, showGame = false }: { report: Report; showG
       </div>
       {long && <button type="button" className="btn-ghost self-start -ml-3 text-brand-text" onClick={() => setOpen(!open)}>{open ? 'Show less' : 'Read all'}</button>}
 
-      {r.pending ? (
-        <footer className="flex items-center gap-2 text-xs text-amber-200 pt-3 border-t border-border/60 mt-auto">
-          <Icon name="clock" className="w-3.5 h-3.5" /> Only you see this until the site rebuilds, usually within a few minutes.
+      {r.source === 'site' ? <HelpfulRow report={r} /> : (
+        <footer className="flex items-center gap-4 text-xs text-muted-foreground pt-1 border-t border-border/60 mt-auto">
+          <span className="inline-flex items-center gap-1.5 pt-3 tabular-nums" title="People who found this helpful (thumbs up on GitHub)">
+            <Icon name="thumbs-up" className="w-3.5 h-3.5" /> {r.helpful}
+          </span>
+          <span className="inline-flex items-center gap-1.5 pt-3 tabular-nums">
+            <Icon name="message-circle" className="w-3.5 h-3.5" /> {r.comments ?? 0}
+          </span>
+          <a href={reportUrl(r.id)} target="_blank" rel="noreferrer" className="ml-auto pt-3 inline-flex items-center gap-1.5 hover:text-foreground">
+            Reply or vote on GitHub <Icon name="external-link" className="w-3.5 h-3.5" />
+          </a>
         </footer>
-      ) : (
-      <footer className="flex items-center gap-4 text-xs text-muted-foreground pt-1 border-t border-border/60 mt-auto">
-        <span className="inline-flex items-center gap-1.5 pt-3 tabular-nums" title="People who found this helpful (👍 on GitHub)">
-          <Icon name="thumbs-up" className="w-3.5 h-3.5" /> {r.helpful}
-        </span>
-        <span className="inline-flex items-center gap-1.5 pt-3 tabular-nums">
-          <Icon name="message-circle" className="w-3.5 h-3.5" /> {r.comments}
-        </span>
-        <a href={reportUrl(r.id)} target="_blank" rel="noreferrer" className="ml-auto pt-3 inline-flex items-center gap-1.5 hover:text-foreground">
-          Reply or vote on GitHub <Icon name="external-link" className="w-3.5 h-3.5" />
-        </a>
-      </footer>
       )}
     </article>
   );
@@ -91,39 +97,56 @@ export function ShareButton({ game, device, className = 'btn-primary' }: { game?
   );
 }
 
+// "Helpful" on a report posted on DeckTune: one vote per visitor, counted by the database.
+function HelpfulRow({ report }: { report: Report }) {
+  const [voted, setVoted] = useStored<number[]>('helpful-votes', []);
+  const [count, setCount] = useState(report.helpful);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const done = voted.includes(report.id);
+  return (
+    <footer className="flex items-center gap-3 text-xs text-muted-foreground pt-3 border-t border-border/60 mt-auto">
+      <button
+        type="button"
+        disabled={done || busy}
+        aria-pressed={done}
+        onClick={async () => {
+          setBusy(true);
+          setFailed(false);
+          try {
+            setCount(await voteHelpful(report.id));
+            setVoted((v) => [...v, report.id]);
+          } catch {
+            setFailed(true);
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border transition-colors tabular-nums ${done ? 'border-brand/40 bg-brand/10 text-brand-text' : 'border-border hover:border-brand hover:text-foreground cursor-pointer'}`}
+      >
+        <Icon name={busy ? 'loader-circle' : 'thumbs-up'} className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+        {done ? 'Helpful' : 'Helpful?'} · {count}
+      </button>
+      {failed && <span className="text-rose-300">Couldn't save your vote. Try again.</span>}
+    </footer>
+  );
+}
+
 export function HowPostingWorks() {
   return (
     <p className="caption flex items-start gap-2">
       <Icon name="users" className="w-3.5 h-3.5 shrink-0 mt-0.5" />
       <span>
-        {REPORT_API
-          ? 'Post right here, no account needed, or with your GitHub account. Reports show up for everyone a few minutes later; give a 👍 or reply on GitHub.'
-          : 'Reports are posted with a free GitHub account and show up here a few minutes later. Anyone can read them; reply or give a 👍 on GitHub.'}
+        {SITE_POSTING
+          ? 'Post right here in about a minute, no account needed. Reports go live straight away; mark the ones that helped you.'
+          : 'Reports are posted with a free GitHub account and show up here a few minutes later. Anyone can read them; reply or give a thumbs up on GitHub.'}
       </span>
     </p>
   );
 }
 
-// Reports this visitor posted that the published list doesn't have yet. Published or week-old ones
-// drop out of storage.
-export function usePendingReports(published: Report[] | undefined): Report[] {
-  const [pending, setPending] = useStored<Report[]>('pending-reports', []);
-  const live = useMemo(() => {
-    if (!published) return [];
-    const ids = new Set(published.map((r) => r.id));
-    const week = Date.now() - 7 * 86400_000;
-    return pending.filter((r) => !ids.has(r.id) && new Date(r.created).getTime() > week);
-  }, [pending, published]);
-  useEffect(() => {
-    if (published && live.length !== pending.length) setPending(live);
-  }, [live, pending.length, published, setPending]);
-  return live;
-}
-
 // A game's reports: the verdict at a glance, then the reports themselves, filterable by handheld.
-export function GameReports({ game, reports: published, device }: { game: ReportGame; reports: Report[]; device: DeviceId }) {
-  const pending = usePendingReports(published);
-  const reports = useMemo(() => [...pending.filter((r) => r.appId === game.appId), ...published], [pending, published, game.appId]);
+export function GameReports({ game, reports, device }: { game: ReportGame; reports: Report[]; device: DeviceId }) {
   const present = useMemo(() => {
     const m = new Map<DeviceId, number>();
     for (const r of reports) m.set(r.device, (m.get(r.device) ?? 0) + 1);
@@ -198,7 +221,7 @@ export function GameReports({ game, reports: published, device }: { game: Report
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {visible.map((r) => <ReportCard key={r.id} report={r} />)}
+            {visible.map((r) => <ReportCard key={r.key} report={r} />)}
           </div>
           <HowPostingWorks />
         </>

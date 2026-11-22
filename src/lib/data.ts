@@ -1,6 +1,7 @@
 // Everything the site reads: static JSON files built into the site (public/data), cached per page load.
 import type { DeckVerified, GameProfiles } from './profiles';
 import type { DeviceId } from './handhelds';
+import type { ReportSettings } from './settings';
 
 const BASE = `${import.meta.env.BASE_URL}data/`;
 const cache = new Map<string, Promise<unknown>>();
@@ -73,7 +74,10 @@ export async function loadFacts(): Promise<Map<number, GameFacts>> {
 export type Rating = 'great' | 'good' | 'playable' | 'rough' | 'unplayable';
 
 export interface Report {
+  // Unique across both sources: "s12" posted on DeckTune, "g34" a GitHub issue.
+  key: string;
   id: number;
+  source: 'site' | 'github';
   appId: number;
   game: string;
   device: DeviceId;
@@ -84,21 +88,25 @@ export interface Report {
   battery: number | null;
   // The DeckTune preset the player used, when they used one.
   preset?: string;
+  // Settings as written in a GitHub issue; on-site reports use `setup` instead.
   settings: string;
+  setup?: ReportSettings;
   notes: string;
   user: string;
   avatar: string;
-  // Posted on DeckTune without a GitHub account; `user` is the name they gave.
+  // No GitHub account behind it: `user` is the name the poster typed.
   guest?: boolean;
-  // Posted by this visitor and not yet in the published list.
-  pending?: boolean;
   created: string;
-  updated: string;
   helpful: number;
-  comments: number;
+  comments?: number;
 }
 
-export const loadReports = () => load<{ updated: string; reports: Report[] }>('reports.json');
+type GithubReport = Omit<Report, 'key' | 'source'>;
+
+// Reports filed as GitHub issues, built into the site by scripts/build-reports.mjs.
+export const loadGithubReports = () =>
+  load<{ updated: string; reports: GithubReport[] }>('reports.json')
+    .then((d) => d.reports.map((r): Report => ({ ...r, key: `g${r.id}`, source: 'github' })));
 
 // ───────────────────────── Steam art ─────────────────────────
 

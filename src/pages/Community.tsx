@@ -1,24 +1,23 @@
 import { useMemo, useState } from 'react';
-import { loadReports, type Report } from '../lib/data';
+import type { Report } from '../lib/data';
+import { useReports } from '../lib/reports';
 import { HANDHELDS } from '../lib/handhelds';
 import { allReportsUrl, RATINGS, REPO } from '../lib/community';
-import { useLoad } from '../lib/state';
 import { BackLink, EmptyState, ErrorRow, GitHubMark, Icon } from '../components/ui';
-import { HowPostingWorks, ReportCard, ShareButton, usePendingReports } from '../components/Reports';
+import { HowPostingWorks, ReportCard, ShareButton } from '../components/Reports';
 import { useDevice } from '../App';
 
 const PAGE = 20;
 
 // Every player report, newest first: the open place to see how games run on real handhelds.
 export function CommunityPage() {
-  const [data, failed, retry] = useLoad(loadReports, []);
+  const [data, failed, retry] = useReports();
   const [device, setDevice] = useState('all');
   const [rating, setRating] = useState('all');
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(PAGE);
   const [myDevice] = useDevice();
-  const pending = usePendingReports(data?.reports);
-  const reports = useMemo(() => [...pending, ...(data?.reports ?? [])], [pending, data]);
+  const reports = useMemo(() => data ?? [], [data]);
 
   const deviceCounts = useMemo(() => count(reports, (r) => r.device), [reports]);
   const ratingCounts = useMemo(() => count(reports, (r) => r.rating), [reports]);
@@ -75,7 +74,7 @@ export function CommunityPage() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    {visible.slice(0, limit).map((r) => <ReportCard key={r.id} report={r} showGame />)}
+                    {visible.slice(0, limit).map((r) => <ReportCard key={r.key} report={r} showGame />)}
                   </div>
                   <div className="flex flex-col items-center gap-3">
                     <p className="caption tabular-nums">Showing {Math.min(limit, visible.length)} of {visible.length}</p>

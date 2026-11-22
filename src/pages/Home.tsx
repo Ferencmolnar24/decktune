@@ -1,11 +1,12 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import {
-  compact, formatDate, loadCatalog, loadFacts, loadProfileIndex, loadReports, POPULAR, ratingOf,
+  compact, formatDate, loadCatalog, loadFacts, loadProfileIndex, POPULAR, ratingOf,
   type CatalogGame, type GameRef,
 } from '../lib/data';
 import { getHandheld, type DeviceId } from '../lib/handhelds';
 import { hasSettingsFor } from '../lib/profiles';
 import { useLoad, useStored } from '../lib/state';
+import { useReports } from '../lib/reports';
 import { useLibrary } from '../lib/library';
 import { useDevice } from '../App';
 import { EmptyState, ErrorRow, GameArt, Icon, SectionHeader, TierBadge, capitalize, normalizeTier } from '../components/ui';
@@ -20,7 +21,7 @@ const fold = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p
 export function Home() {
   const [device] = useDevice();
   const [index] = useLoad(loadProfileIndex, []);
-  const [reports] = useLoad(loadReports, []);
+  const [reports] = useReports();
   const [query, setQuery] = useState('');
   const searching = query.trim().length > 0;
 
@@ -28,7 +29,7 @@ export function Home() {
   const images = useMemo(() => new Map((index ?? []).map((r) => [r[0], r[3]])), [index]);
   const reportCounts = useMemo(() => {
     const m = new Map<number, number>();
-    for (const r of reports?.reports ?? []) m.set(r.appId, (m.get(r.appId) ?? 0) + 1);
+    for (const r of reports ?? []) m.set(r.appId, (m.get(r.appId) ?? 0) + 1);
     return m;
   }, [reports]);
   const ready = useCallback((appId: number) => hasSettingsFor(settings.get(appId) ?? [], device), [settings, device]);
@@ -50,7 +51,7 @@ export function Home() {
           {reports && (
             <a href="#/community" className="inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/10 px-3 py-1.5 text-sm font-medium text-brand-text tabular-nums hover:bg-brand/15">
               <Icon name="users" className="w-4 h-4" />
-              {reports.reports.length === 0 ? 'Share the first player report' : `${reports.reports.length.toLocaleString('en-US')} player ${reports.reports.length === 1 ? 'report' : 'reports'}`}
+              {reports.length === 0 ? 'Share the first player report' : `${reports.length.toLocaleString('en-US')} player ${reports.length === 1 ? 'report' : 'reports'}`}
             </a>
           )}
         </div>
@@ -82,12 +83,12 @@ export function Home() {
               {POPULAR.map((g) => <GameTile key={g.appId} game={{ ...g, image: images.get(g.appId) }} ready={ready(g.appId)} reports={reportCounts.get(g.appId)} />)}
             </div>
           </section>
-          {reports && reports.reports.length > 0 && (
+          {reports && reports.length > 0 && (
             <section className="flex flex-col gap-4">
               <SectionHeader icon="message-square-text" title="Latest player reports" subtitle="How games run on real handhelds"
                 action={<a href="#/community" className="btn-ghost">See all</a>} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {reports.reports.slice(0, 4).map((r) => <ReportCard key={r.id} report={r} showGame />)}
+                {reports.slice(0, 4).map((r) => <ReportCard key={r.key} report={r} showGame />)}
               </div>
             </section>
           )}

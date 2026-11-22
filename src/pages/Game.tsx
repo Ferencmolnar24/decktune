@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { catalogById, loadFacts, loadProfileIndex, loadProfiles, loadReports, type GameFacts } from '../lib/data';
+import { catalogById, loadFacts, loadProfileIndex, loadProfiles, type GameFacts } from '../lib/data';
+import { useReports } from '../lib/reports';
 import { getHandheld, isAlly, scaleBatteryLife, type DeviceId } from '../lib/handhelds';
 import { PROFILE_KINDS, viewForDevice, type ProfileKind, type ProfileView, type ProfileViewSet } from '../lib/profiles';
 import { useLoad } from '../lib/state';
@@ -25,7 +26,7 @@ export function GamePage({ appId }: { appId: number }) {
   const [device, setDevice] = useDevice();
   const [game, failed, retry] = useLoad(() => loadGame(appId), [appId]);
   const [facts] = useLoad(loadFacts, []);
-  const [reports] = useLoad(loadReports, []);
+  const [reports] = useReports();
   const { has, toggle } = useLibrary();
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export function GamePage({ appId }: { appId: number }) {
 
   const f = facts?.get(appId);
   const saved = has(appId);
-  const gameReports = (reports?.reports ?? []).filter((r) => r.appId === appId);
+  const gameReports = (reports ?? []).filter((r) => r.appId === appId);
 
   return (
     <div className="flex flex-col gap-8 pt-2 fade-in">
