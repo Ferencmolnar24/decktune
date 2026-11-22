@@ -1,12 +1,14 @@
 import { lazy, Suspense } from 'react';
 import { HANDHELDS, isDevice, type DeviceId } from './lib/handhelds';
 import { useRoute, useStored, type Route } from './lib/state';
-import { REPO } from './lib/community';
 import { GitHubMark, Icon } from './components/ui';
 import { Home } from './pages/Home';
 import { GamePage } from './pages/Game';
 import { GuidePage } from './pages/Guide';
 import { CommunityPage } from './pages/Community';
+
+// Set by the GitHub Actions build (owner/repo), for the footer's source link.
+const REPO: string = import.meta.env.VITE_GITHUB_REPO ?? '';
 
 // The repair page pulls in three.js, so it loads only when opened.
 const RepairPage = lazy(() => import('./pages/Repair'));

@@ -1,35 +1,42 @@
 // DeckTune's report form: six short questions, every answer a tap or a small box, posted right on
-// DeckTune (or, before the report database is set up, as a filled-in GitHub issue). A failed post
-// keeps every answer, so trying again is one press.
+// DeckTune. The same form edits a report this browser posted. A failed post keeps every answer, so
+// trying again is one press.
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { loadCatalog, loadProfileIndex, loadProfiles, ratingOf } from '../lib/data';
+import { loadCatalog, loadProfileIndex, loadProfiles, ratingOf, type Report } from '../lib/data';
 import { getHandheld, HANDHELDS, type DeviceId } from '../lib/handhelds';
 import { fpsStepsFor } from '../lib/fps';
 import { viewForDevice, type ProfileKind } from '../lib/profiles';
 import { fieldsFor, settingsFromPreset, type ReportSettings, type SettingField } from '../lib/settings';
-import { BATTERY_OPTIONS, githubReportUrl, missing, OS_OPTIONS, PRESET_OPTIONS, RATINGS, REPO, toNewReport, type ReportDraft } from '../lib/community';
-import { PostError, postSiteReport, refreshReports, SITE_POSTING } from '../lib/reports';
+import { BATTERY_OPTIONS, draftFromReport, missing, OS_OPTIONS, PRESET_OPTIONS, RATINGS, toNewReport, type ReportDraft } from '../lib/community';
+import { editSiteReport, PostError, postSiteReport, refreshReports, SITE_POSTING, useMyReports } from '../lib/reports';
 import { useLoad, useStored } from '../lib/state';
-import { GitHubMark, Icon } from './ui';
+import { Icon } from './ui';
 
 export interface ReportGame { appId: number; name: string; hasPresets?: boolean }
 
 const defaultOs = (device: DeviceId) => (getHandheld(device).family === 'deck' ? 'SteamOS' : 'Windows');
 const PRESET_KIND: Record<string, ProfileKind> = { 'Max Battery': 'MaxBattery', Optimal: 'Optimal', 'Max Performance': 'MaxPerformance' };
 
-export function ReportForm({ game, device, onClose }: { game?: ReportGame; device: DeviceId; onClose: () => void }) {
+export function ReportForm({ game, device, onClose, edit }: {
+  game?: ReportGame; device: DeviceId; onClose: () => void;
+  // A report this browser posted, with its key: the form then saves changes to it.
+  edit?: { report: Report; key: string };
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [savedName, setSavedName] = useStored('reporter-name', '');
-  const [picked, setPicked] = useState<ReportGame | undefined>(game);
-  const [draft, setDraft] = useState<ReportDraft>(() => ({
+  const [, setMine] = useMyReports();
+  const [picked, setPicked] = useState<ReportGame | undefined>(edit ? { appId: edit.report.appId, name: edit.report.game } : game);
+  const [draft, setDraft] = useState<ReportDraft>(() => edit ? draftFromReport(edit.report) : {
     appId: game?.appId ?? 0, game: game?.name ?? '', device, os: defaultOs(device), rating: '', fps: '', battery: '',
     preset: '', setup: {}, notes: '', name: savedName,
-  }));
+  });
   const [honeypot, setHoneypot] = useState('');
-  const [state, setState] = useState<'editing' | 'posting' | 'posted' | 'github'>('editing');
+  const [state, setState] = useState<'editing' | 'posting' | 'posted'>('editing');
   const [error, setError] = useState('');
   const [showMissing, setShowMissing] = useState(false);
-  const [profiles] = useLoad(() => (picked?.hasPresets ? loadProfiles(picked.appId) : Promise.resolve(null)), [picked?.appId]);
+  // Presets prefill the settings boxes. When it isn't known whether the game has any (editing),
+  // a game without them simply finds none.
+  const [profiles] = useLoad(() => (picked && picked.hasPresets !== false ? loadProfiles(picked.appId).catch(() => null) : Promise.resolve(null)), [picked?.appId]);
 
   useEffect(() => {
     const d = dialog.current;
@@ -78,8 +85,13 @@ export function ReportForm({ game, device, onClose }: { game?: ReportGame; devic
     setState('posting');
     setError('');
     try {
-      // A filled hidden field is a bot: act as if it worked and save nothing.
-      if (!honeypot) await postSiteReport(toNewReport(draft));
+      if (edit) {
+        await editSiteReport(edit.report.id, edit.key, toNewReport(draft));
+      } else if (!honeypot) {
+        // (A filled hidden field is a bot: it's told it worked and nothing is saved.)
+        const { id, key } = await postSiteReport(toNewReport(draft));
+        if (id && key) setMine((m) => ({ ...m, [id]: key }));
+      }
       setSavedName(draft.name.trim());
       refreshReports();
       setState('posted');
@@ -87,15 +99,6 @@ export function ReportForm({ game, device, onClose }: { game?: ReportGame; devic
       setError(e instanceof PostError ? e.message : "Couldn't post the report. Try again in a minute.");
       setState('editing');
     }
-  }
-
-  function openGitHub() {
-    if (needs.length) {
-      setShowMissing(true);
-      return;
-    }
-    window.open(githubReportUrl(draft), '_blank', 'noopener');
-    setState('github');
   }
 
   let n = 0;
@@ -115,7 +118,7 @@ export function ReportForm({ game, device, onClose }: { game?: ReportGame; devic
             <Icon name="pen-line" className="w-5 h-5 text-brand-text" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 id="report-form-title" className="font-heading text-xl font-semibold leading-tight">Share how it runs</h2>
+            <h2 id="report-form-title" className="font-heading text-xl font-semibold leading-tight">{edit ? 'Edit your report' : 'Share how it runs'}</h2>
             <p className="caption truncate">{picked ? `${picked.name} · about a minute` : 'Pick the game you played'}</p>
           </div>
           <button type="button" className="btn-ghost btn-icon -mr-2 -mt-1" aria-label="Close" onClick={() => dialog.current?.close()}>
@@ -124,18 +127,14 @@ export function ReportForm({ game, device, onClose }: { game?: ReportGame; devic
         </header>
 
         {state === 'posted' ? (
-          <Done icon="circle-check" title="Thanks! Your report is live" body="It's on the game's page now for everyone to see. Players can mark it helpful.">
+          <Done icon="circle-check" title={edit ? 'Saved' : 'Thanks! Your report is live'}
+            body={edit ? 'Your report is updated on the game’s page.' : 'It’s on the game’s page now for everyone to see. You can edit or delete it from this browser.'}>
             <button type="button" className="btn-primary" onClick={() => dialog.current?.close()}>Done</button>
-          </Done>
-        ) : state === 'github' ? (
-          <Done icon="external-link" title="Finish on GitHub" body="Your report opened in a new tab with every answer filled in. Sign in there if GitHub asks, then press Create. It shows up here within a few minutes.">
-            <button type="button" className="btn-primary" onClick={() => dialog.current?.close()}>Done</button>
-            <button type="button" className="btn-ghost" onClick={() => setState('editing')}>Back to the form</button>
           </Done>
         ) : (
           <>
             <div className="flex flex-col gap-7 overflow-y-auto px-5 sm:px-6 py-5">
-              {!game && <GamePicker picked={picked} onPick={chooseGame} />}
+              {!game && !edit && <GamePicker picked={picked} onPick={chooseGame} />}
 
               <Question n={step()} label="Which handheld and system?">
                 <div className="flex flex-col sm:flex-row gap-2">
@@ -207,7 +206,7 @@ export function ReportForm({ game, device, onClose }: { game?: ReportGame; devic
                 </div>
               )}
               {showMissing && needs.length > 0 && <p className="text-sm text-amber-200">Still needed: {needs.join(', ')}.</p>}
-              <Actions state={state} onPost={post} onGitHub={openGitHub} />
+              <Actions state={state} editing={!!edit} onPost={post} />
             </footer>
           </>
         )}
@@ -216,31 +215,23 @@ export function ReportForm({ game, device, onClose }: { game?: ReportGame; devic
   );
 }
 
-function Actions({ state, onPost, onGitHub }: { state: string; onPost: () => void; onGitHub: () => void }) {
-  if (SITE_POSTING) {
+function Actions({ state, editing, onPost }: { state: string; editing: boolean; onPost: () => void }) {
+  if (!SITE_POSTING) {
     return (
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <p className="caption flex-1">No account needed. Your report goes live right away.</p>
-        <button type="button" className="btn-primary sm:min-w-44" onClick={onPost} disabled={state === 'posting'}>
-          {state === 'posting' ? <><Icon name="loader-circle" className="w-4 h-4 animate-spin" /> Posting…</> : <><Icon name="send" /> Post report</>}
-        </button>
-      </div>
-    );
-  }
-  if (REPO) {
-    return (
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <p className="caption flex-1">Opens GitHub with your report filled in. A free GitHub account posts it.</p>
-        <button type="button" className="btn-primary" onClick={onGitHub}>
-          <GitHubMark /> Continue on GitHub
-        </button>
+        <p className="caption flex-1">Posting isn’t switched on for this copy of DeckTune.</p>
+        <button type="button" className="btn-primary" disabled><Icon name="send" /> Post report</button>
       </div>
     );
   }
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-      <p className="caption flex-1">Posting turns on once the site is published from its GitHub repository.</p>
-      <button type="button" className="btn-primary" disabled><Icon name="send" /> Post report</button>
+      <p className="caption flex-1">{editing ? 'Changes show up right away.' : 'No account needed. Your report goes live right away.'}</p>
+      <button type="button" className="btn-primary sm:min-w-44" onClick={onPost} disabled={state === 'posting'}>
+        {state === 'posting'
+          ? <><Icon name="loader-circle" className="w-4 h-4 animate-spin" /> {editing ? 'Saving…' : 'Posting…'}</>
+          : editing ? <><Icon name="check" /> Save changes</> : <><Icon name="send" /> Post report</>}
+      </button>
     </div>
   );
 }

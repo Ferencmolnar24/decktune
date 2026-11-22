@@ -5,7 +5,7 @@ import {
   Gamepad2, Gauge, GraduationCap, Grid2x2, HardDrive, Info, Library, Lightbulb, ListChecks, Map as MapIcon, MemoryStick,
   MessageSquareText, Microchip, Minus, Monitor, Package, Plus, RefreshCw, RotateCcw, Scaling, ScanEye, Search, SearchX,
   ShieldCheck, SlidersHorizontal, Sparkles, Split, ThumbsUp, Timer, Trash2, TriangleAlert, Users, WifiOff, Wrench, Zap,
-  PenLine, MessageCircle, X, Send, LoaderCircle, UserRound, Clock, type LucideIcon,
+  PenLine, MessageCircle, X, Send, LoaderCircle, UserRound, Clock, Flag, ThumbsDown, Pencil, Megaphone, Funnel, Trophy, type LucideIcon,
 } from 'lucide-react';
 import { artUrls, type GameFacts } from '../lib/data';
 
@@ -22,6 +22,7 @@ const ICONS: Record<string, LucideIcon> = {
   'shield-check': ShieldCheck, 'sliders-horizontal': SlidersHorizontal, sparkles: Sparkles, split: Split, 'thumbs-up': ThumbsUp,
   timer: Timer, 'trash-2': Trash2, 'triangle-alert': TriangleAlert, users: Users, 'wifi-off': WifiOff, wrench: Wrench, zap: Zap,
   'pen-line': PenLine, x: X, send: Send, 'loader-circle': LoaderCircle, 'user-round': UserRound, clock: Clock,
+  flag: Flag, 'thumbs-down': ThumbsDown, pencil: Pencil, megaphone: Megaphone, filter: Funnel, trophy: Trophy,
 };
 
 export function Icon({ name, className = 'w-4 h-4' }: { name: string; className?: string }) {

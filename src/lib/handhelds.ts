@@ -139,12 +139,3 @@ export function formatHours(h: number): string {
   return whole === 0 ? `${min} min` : min === 0 ? `${whole} h` : `${whole} h ${String(min).padStart(2, '0')} min`;
 }
 
-// Profiles quote battery life for a new battery ("2.5-3 h"); scale every number by the battery's
-// health so a worn battery gets an honest figure.
-export function scaleBatteryLife(text: string, healthPct: number): string {
-  if (healthPct >= 100 || !text) return text;
-  return text.replace(/\d+(?:\.\d+)?/g, (n) => {
-    const v = (parseFloat(n) * healthPct) / 100;
-    return String(Math.round(v * 10) / 10);
-  });
-}

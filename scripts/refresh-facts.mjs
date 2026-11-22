@@ -1,5 +1,5 @@
 // ProtonDB's community tier and Valve's Steam Deck Verified rating for every game that has DeckTune
-// settings, community reports or a spot on the home page. Neither service lets a browser read it
+// settings, player reports (read from the report database named in .env) or a spot on the home page. Neither service lets a browser read it
 // directly (no CORS), so GitHub Actions fetches it daily into public/data/facts.json:
 // { updated, games: { appId: [tier, reports, confidence, trending, deckVerified 0-3] } }
 import { readFile, writeFile } from 'node:fs/promises';
@@ -16,10 +16,24 @@ const read = async (name, fallback) => {
 const POPULAR = [1245620, 1086940, 1091500, 1145350, 413150, 1174180, 2379780, 367520, 1593500, 1794680, 2246340, 1145360];
 
 const index = await read('profiles-index.json', []);
-const reports = await read('reports.json', { reports: [] });
 const previous = await read('facts.json', { games: {} });
 
-const ids = [...new Set([...POPULAR, ...index.map((r) => r[0]), ...reports.reports.map((r) => r.appId)])];
+// The games players have reported on. Skipped (not fatal) when the database can't be reached.
+async function reportedGames() {
+  try {
+    const env = Object.fromEntries((await readFile(new URL('../.env', import.meta.url), 'utf8'))
+      .split(/\r?\n/).map((l) => l.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/)).filter(Boolean).map((m) => [m[1], m[2]]));
+    const url = (process.env.VITE_SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? '').replace(/\/+$/, '');
+    const key = process.env.VITE_SUPABASE_KEY ?? env.VITE_SUPABASE_KEY ?? '';
+    if (!url || !key) return [];
+    const res = await fetch(`${url}/rest/v1/reports?select=app_id&limit=5000`, { headers: { apikey: key } });
+    return res.ok ? (await res.json()).map((r) => r.app_id) : [];
+  } catch {
+    return [];
+  }
+}
+
+const ids = [...new Set([...POPULAR, ...index.map((r) => r[0]), ...(await reportedGames())])];
 const headers = { 'User-Agent': 'DeckTune/2.0 (facts refresh)' };
 
 async function json(url) {

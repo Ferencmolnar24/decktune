@@ -8,8 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "data:catalog": "node scripts/refresh-catalog.mjs",
-    "data:facts": "node scripts/refresh-facts.mjs",
-    "data:reports": "node scripts/build-reports.mjs"
+    "data:facts": "node scripts/refresh-facts.mjs"
   },
   "dependencies": {
     "@react-three/drei": "10.7.9",

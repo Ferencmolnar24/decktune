@@ -88,7 +88,7 @@ export function Home() {
               <SectionHeader icon="message-square-text" title="Latest player reports" subtitle="How games run on real handhelds"
                 action={<a href="#/community" className="btn-ghost">See all</a>} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {reports.slice(0, 4).map((r) => <ReportCard key={r.key} report={r} showGame />)}
+                {reports.slice(0, 4).map((r) => <ReportCard key={r.id} report={r} showGame />)}
               </div>
             </section>
           )}

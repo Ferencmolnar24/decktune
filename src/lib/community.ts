@@ -1,28 +1,15 @@
-// Posting a report: the form's answers (a draft), what's still missing, and the two ways to post.
-// With the report database set up (lib/reports.ts) visitors post right on DeckTune; until then the
-// form opens a filled-in GitHub issue instead.
-import { getHandheld, type DeviceId } from './handhelds';
+// Posting a report: the form's answers (a draft), what's still missing, and how a draft becomes a
+// report for the database (lib/reports.ts).
+import type { DeviceId } from './handhelds';
 import type { Rating, Report } from './data';
-import { cleanSettings, hasSettings, settingsText, type ReportSettings } from './settings';
+import { cleanSettings, hasSettings, type ReportSettings } from './settings';
 import type { NewReport } from './reports';
-
-// Set by the GitHub Actions build (owner/repo).
-export const REPO: string = import.meta.env.VITE_GITHUB_REPO ?? '';
 
 export const OS_OPTIONS = ['SteamOS', 'Windows', 'Bazzite or another Linux'] as const;
 export const PRESET_OPTIONS = ['Max Battery', 'Optimal', 'Max Performance', 'My own settings'] as const;
 export const BATTERY_OPTIONS = ['1', '1.5', '2', '2.5', '3', '4', '5', '6+'] as const;
-// Frame rates as the issue form lists them; "Under 30" is stored as 25.
+// "Under 30" is stored as 25.
 export const FPS_OPTIONS = ['Under 30', '30', '40', '45', '60', '90', '120'] as const;
-
-// The rating options exactly as the issue form words them (the build reads the first word).
-const RATING_LINES: Record<Rating, string> = {
-  great: 'Great - smooth, no real compromises',
-  good: 'Good - smooth with a few tweaks',
-  playable: 'Playable - noticeable compromises',
-  rough: 'Rough - barely playable',
-  unplayable: 'Unplayable',
-};
 
 export interface ReportDraft {
   appId: number;
@@ -48,35 +35,6 @@ export function missing(d: ReportDraft): string[] {
   return out;
 }
 
-// User text can't start new "### " sections (which the build reads as fields) or @-mention people.
-const clean = (s: string) => s.replace(/\r\n/g, '\n').replace(/^#{1,6}\s/gm, '').replace(/@(?=\w)/g, '@\u200b').trim();
-
-export const reportTitle = (d: ReportDraft) => `[Report] ${d.game} on ${getHandheld(d.device).name}`;
-
-// The issue body, in the same "### Label" layout GitHub's issue form produces. Handheld names are
-// the form's own options.
-export function reportBody(d: ReportDraft): string {
-  const section = (label: string, value: string) => `### ${label}\n\n${value || '_No response_'}`;
-  return [
-    section('Game', clean(d.game)),
-    section('Steam app ID', String(d.appId)),
-    section('Handheld', getHandheld(d.device).name),
-    section('Operating system', d.os),
-    section('How well does it run?', d.rating ? RATING_LINES[d.rating] : ''),
-    section('Frame rate', d.fps),
-    section('Battery life (hours)', d.battery),
-    section('DeckTune preset used', d.preset),
-    section('Settings you used', clean(settingsText(cleanSettings(d.setup, d.device, d.os)))),
-    section('Anything else?', clean(d.notes)),
-  ].join('\n\n');
-}
-
-// A new GitHub issue with every field already filled in: the visitor signs in and presses Submit.
-export function githubReportUrl(d: ReportDraft): string {
-  const params = new URLSearchParams({ title: reportTitle(d), body: reportBody(d), labels: 'performance-report' });
-  return `https://github.com/${REPO}/issues/new?${params}`;
-}
-
 // The draft as the report database stores it.
 export function toNewReport(d: ReportDraft): NewReport {
   return {
@@ -88,8 +46,15 @@ export function toNewReport(d: ReportDraft): NewReport {
   };
 }
 
-export const reportUrl = (id: number) => `https://github.com/${REPO}/issues/${id}`;
-export const allReportsUrl = () => `https://github.com/${REPO}/issues?q=is%3Aissue+is%3Aopen+label%3Aperformance-report`;
+// A posted report back as a draft, for editing it.
+export function draftFromReport(r: Report): ReportDraft {
+  return {
+    appId: r.appId, game: r.game, device: r.device, os: r.os, rating: r.rating,
+    fps: r.fps === 25 ? 'Under 30' : String(r.fps),
+    battery: r.battery == null ? '' : r.battery >= 6 ? '6+' : String(r.battery),
+    preset: r.preset ?? '', setup: { ...r.setup }, notes: r.notes, name: r.user === 'Guest' ? '' : r.user,
+  };
+}
 
 export const RATINGS: { id: Rating; label: string; hint: string; tone: string; bar: string }[] = [
   { id: 'great', label: 'Great', hint: 'Smooth, no compromises', tone: 'text-emerald-300 border-emerald-400/40 bg-emerald-400/10', bar: 'bg-emerald-400' },

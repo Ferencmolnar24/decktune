@@ -3,6 +3,7 @@
 // presets are converted from the game's Deck profile here, in code.
 import { ALLY_BASES, getHandheld, type AllyChip, type DeviceId } from './handhelds';
 import { fpsStepsFor, formatFps, nearestStep } from './fps';
+import { deckDrawWatts } from './battery';
 
 export interface GameSetting { Name: string; Value: string }
 
@@ -51,7 +52,10 @@ export interface ProfileView {
   compatTitle: string;
   compat: string;
   expectedFps: string;
-  expectedBatteryLife: string;
+  // What the whole handheld draws on this preset, for the battery estimate (lib/battery.ts).
+  drawWatts: number;
+  // The power setting in a few words, for comparisons: "12 W TDP", "Performance mode".
+  power: string;
 }
 
 export interface ProfileViewSet {
@@ -91,7 +95,8 @@ function fromDeckProfile(p: DeckProfile, device: DeviceId): ProfileView {
     compatTitle: 'Compatibility layer',
     compat: p.ProtonVersion,
     expectedFps: formatFps(p.ExpectedFps, p.FrameLimit, device),
-    expectedBatteryLife: p.ExpectedBatteryLife,
+    drawWatts: deckDrawWatts(p, device),
+    power: p.TdpLimitWatts > 0 ? `${p.TdpLimitWatts} W TDP` : 'No TDP limit',
   };
 }
 
@@ -205,8 +210,6 @@ function forAlly(deck: StoredDevice, baseDevice: DeviceId, device: DeviceId, ver
   };
 }
 
-const fmt1 = (n: number) => String(Math.round(n * 10) / 10);
-
 function toView(plan: Plan, kind: ProfileKind, weight: Weight, chip: AllyChip, set: DeckProfileSet): ProfileView {
   // A capped Deck preset only says what it was capped to, so the Deck's potential comes from its Max
   // Performance preset. Lighter settings buy a little more. Frame rate scales a little less than
@@ -256,8 +259,6 @@ function toView(plan: Plan, kind: ProfileKind, weight: Weight, chip: AllyChip, s
   // A capped game draws less than its mode allows; the screen and the rest always draw their share.
   const load = cap > 0 ? Math.min(1, Math.max(0.45, cap / estimate)) : 1;
   const draw = chip.watts[plan.mode] * (0.4 + 0.6 * load) + 5.5;
-  const h = chip.batteryWh / draw;
-  const battery = `${fmt1(h * 0.88)}-${fmt1(h * 1.1)} h`;
 
   const vram = weight === 'Heavy' || (kind === 'MaxPerformance' && weight === 'Medium') ? chip.vram : 'Auto';
 
@@ -287,7 +288,8 @@ function toView(plan: Plan, kind: ProfileKind, weight: Weight, chip: AllyChip, s
     compatTitle: 'Runs on',
     compat: 'Windows 11, natively. No Proton or launch tweaks for Linux needed.',
     expectedFps: fps,
-    expectedBatteryLife: battery,
+    drawWatts: draw,
+    power: chip.showWatts ? `${MODE_NAMES[plan.mode]} · ${chip.watts[plan.mode]} W` : `${MODE_NAMES[plan.mode]} mode`,
   };
 }
 

@@ -74,10 +74,7 @@ export async function loadFacts(): Promise<Map<number, GameFacts>> {
 export type Rating = 'great' | 'good' | 'playable' | 'rough' | 'unplayable';
 
 export interface Report {
-  // Unique across both sources: "s12" posted on DeckTune, "g34" a GitHub issue.
-  key: string;
   id: number;
-  source: 'site' | 'github';
   appId: number;
   game: string;
   device: DeviceId;
@@ -88,25 +85,13 @@ export interface Report {
   battery: number | null;
   // The DeckTune preset the player used, when they used one.
   preset?: string;
-  // Settings as written in a GitHub issue; on-site reports use `setup` instead.
-  settings: string;
-  setup?: ReportSettings;
+  setup: ReportSettings;
   notes: string;
   user: string;
-  avatar: string;
-  // No GitHub account behind it: `user` is the name the poster typed.
-  guest?: boolean;
   created: string;
+  edited?: string;
   helpful: number;
-  comments?: number;
 }
-
-type GithubReport = Omit<Report, 'key' | 'source'>;
-
-// Reports filed as GitHub issues, built into the site by scripts/build-reports.mjs.
-export const loadGithubReports = () =>
-  load<{ updated: string; reports: GithubReport[] }>('reports.json')
-    .then((d) => d.reports.map((r): Report => ({ ...r, key: `g${r.id}`, source: 'github' })));
 
 // ───────────────────────── Steam art ─────────────────────────
 
